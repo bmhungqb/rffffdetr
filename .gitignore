@@ -1,0 +1,10 @@
+weight/
+data/COCO2017
+data/crowdpose
+output/
+official_weights/
+onnx_engines/
+trt_engines/
+clean_pth_files.py
+**/__pycache__/**
+examples/output/
