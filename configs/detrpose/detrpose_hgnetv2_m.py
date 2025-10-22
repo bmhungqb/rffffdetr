@@ -50,5 +50,5 @@ model.transformer.num_decoder_layers = 4
 #     'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
 #     'epoch': [5, 35, 60] # 60 / 2 + 5 = 35
 #     }
-dataset_train.collate_fn.base_size_repeat = 6
-dataset_train.collate_fn.stop_epoch = 60
+# dataset_train.collate_fn.base_size_repeat = 6
+# dataset_train.collate_fn.stop_epoch = 60

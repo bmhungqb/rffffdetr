@@ -36,8 +36,9 @@ dataset_train = L(DataLoader)(
         ToTensorV2(),
     ],
       keypoint_params=dict(format='xy', remove_invisible=False),
-      bbox_params=dict(format='coco', label_fields=['category_ids'])  # Add bbox support
-		),
+      bbox_params=dict(format='coco', label_fields=['labels'])
+		)
+  ),
 	total_batch_size=16,
 	collate_fn=L(BatchImageCollateFunction)(
 		base_size=eval_spatial_size[0],
@@ -48,8 +49,8 @@ dataset_train = L(DataLoader)(
 	shuffle=True,
 	drop_last=True,
 	pin_memory=True
-	)
   )
+
 dataset_val = L(DataLoader)(
 	dataset=L(CocoDetection)(
 		img_folder="data/val",
@@ -74,10 +75,10 @@ dataset_test = L(DataLoader)(
 	dataset=L(CocoDetection)(
 		img_folder="data/val",
 		ann_file="data/annotations/val.json",
-		transforms=Compose(
+		transforms=Compose([
         Resize(height=eval_spatial_size[0], width=eval_spatial_size[1]),
         Normalize(mean=[0, 0, 0], std=[1, 1, 1]),
-        ToTensorV2()
+        ToTensorV2()]
 			),
 		),
 	total_batch_size=32,
