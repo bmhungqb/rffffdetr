@@ -57,10 +57,10 @@ model.transformer.feat_strides = [16, 32]
 model.transformer.hidden_dim = 128
 model.transformer.dec_n_points= 6
 
-dataset_train.dataset.transforms.policy = {
-    'name': 'stop_epoch',
-    'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
-    'epoch': [5, 83, 156] # 156 / 2 + 5 = 83
-    }
+# dataset_train.dataset.transforms.policy = {
+#     'name': 'stop_epoch',
+#     'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
+#     'epoch': [5, 83, 156] # 156 / 2 + 5 = 83
+#     }
 dataset_train.collate_fn.base_size_repeat = None
 dataset_train.collate_fn.stop_epoch = 156

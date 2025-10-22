@@ -18,61 +18,61 @@ from ..misc.box_ops import box_xyxy_to_cxcywh
 
 from omegaconf import ListConfig
 
-def crop(image, target, region):
-    cropped_image = F.crop(image, *region)
+# def crop(image, target, region):
+#     cropped_image = F.crop(image, *region)
 
-    target = target.copy()
-    i, j, h, w = region
+#     target = target.copy()
+#     i, j, h, w = region
 
-    # should we do something wrt the original size?
-    target["size"] = torch.tensor([h, w])
+#     # should we do something wrt the original size?
+#     target["size"] = torch.tensor([h, w])
 
-    fields = ["labels", "area", "iscrowd", "keypoints"]
+#     fields = ["labels", "area", "iscrowd", "keypoints"]
 
-    if "boxes" in target:
-        boxes = target["boxes"]
-        max_size = torch.as_tensor([w, h], dtype=torch.float32)
-        cropped_boxes = boxes - torch.as_tensor([j, i, j, i])
-        cropped_boxes = torch.min(cropped_boxes.reshape(-1, 2, 2), max_size)
-        cropped_boxes = cropped_boxes.clamp(min=0)
-        area = (cropped_boxes[:, 1, :] - cropped_boxes[:, 0, :]).prod(dim=1)
-        target["boxes"] = cropped_boxes.reshape(-1, 4)
-        target["area"] = area
-        fields.append("boxes")
+#     if "boxes" in target:
+#         boxes = target["boxes"]
+#         max_size = torch.as_tensor([w, h], dtype=torch.float32)
+#         cropped_boxes = boxes - torch.as_tensor([j, i, j, i])
+#         cropped_boxes = torch.min(cropped_boxes.reshape(-1, 2, 2), max_size)
+#         cropped_boxes = cropped_boxes.clamp(min=0)
+#         area = (cropped_boxes[:, 1, :] - cropped_boxes[:, 0, :]).prod(dim=1)
+#         target["boxes"] = cropped_boxes.reshape(-1, 4)
+#         target["area"] = area
+#         fields.append("boxes")
 
-    if "masks" in target:
-        # FIXME should we update the area here if there are no boxes?
-        target['masks'] = target['masks'][:, i:i + h, j:j + w]
-        fields.append("masks")
+#     if "masks" in target:
+#         # FIXME should we update the area here if there are no boxes?
+#         target['masks'] = target['masks'][:, i:i + h, j:j + w]
+#         fields.append("masks")
 
-    if "keypoints" in target:
-        max_size = torch.as_tensor([w, h], dtype=torch.float32)
-        keypoints = target["keypoints"]
-        cropped_keypoints = keypoints[...,:2] - torch.as_tensor([j, i])[None, None]
-        cropped_viz = keypoints[..., 2:]
+#     if "keypoints" in target:
+#         max_size = torch.as_tensor([w, h], dtype=torch.float32)
+#         keypoints = target["keypoints"]
+#         cropped_keypoints = keypoints[...,:2] - torch.as_tensor([j, i])[None, None]
+#         cropped_viz = keypoints[..., 2:]
 
-        # keep keypoint if 0<=x<=w and 0<=y<=h else remove
-        cropped_viz = torch.where(
-            torch.logical_and( # condition to know if keypoint is inside the image
-                torch.logical_and(0<=cropped_keypoints[..., 0].unsqueeze(-1), cropped_keypoints[..., 0].unsqueeze(-1)<=w), 
-                torch.logical_and(0<=cropped_keypoints[..., 1].unsqueeze(-1), cropped_keypoints[..., 1].unsqueeze(-1)<=h)
-                ),
-            cropped_viz, # value if condition is True
-            0 # value if condition is False
-            )
+#         # keep keypoint if 0<=x<=w and 0<=y<=h else remove
+#         cropped_viz = torch.where(
+#             torch.logical_and( # condition to know if keypoint is inside the image
+#                 torch.logical_and(0<=cropped_keypoints[..., 0].unsqueeze(-1), cropped_keypoints[..., 0].unsqueeze(-1)<=w), 
+#                 torch.logical_and(0<=cropped_keypoints[..., 1].unsqueeze(-1), cropped_keypoints[..., 1].unsqueeze(-1)<=h)
+#                 ),
+#             cropped_viz, # value if condition is True
+#             0 # value if condition is False
+#             )
 
-        cropped_keypoints = torch.cat([cropped_keypoints, cropped_viz], dim=-1)
-        cropped_keypoints = torch.where(cropped_keypoints[..., -1:]!=0, cropped_keypoints, 0)
+#         cropped_keypoints = torch.cat([cropped_keypoints, cropped_viz], dim=-1)
+#         cropped_keypoints = torch.where(cropped_keypoints[..., -1:]!=0, cropped_keypoints, 0)
 
-        target["keypoints"] = cropped_keypoints
+#         target["keypoints"] = cropped_keypoints
 
-        keep = cropped_viz.sum(dim=(1, 2)) != 0
+#         keep = cropped_viz.sum(dim=(1, 2)) != 0
 
-    # remove elements for which the no keypoint is on the image
-    for field in fields:
-        target[field] = target[field][keep]
+#     # remove elements for which the no keypoint is on the image
+#     for field in fields:
+#         target[field] = target[field][keep]
 
-    return cropped_image, target
+#     return cropped_image, target
 
 
 def hflip(image, target):
@@ -209,28 +209,68 @@ class RandomZoomOut(object):
         return img, target
 
 
-class RandomCrop(object):
-    def __init__(self, p=0.5):
+import random
+import torchvision.transforms.functional as F
+
+def crop(img, target, region):
+    """Crop image and adjust bboxes in COCO format."""
+    i, j, h, w = region
+    img = F.crop(img, i, j, h, w)
+
+    new_boxes = []
+    new_areas = []
+    x, y, bw, bh = target['bbox']
+
+    new_x = x - j
+    new_y = y - i
+
+    inter_x1 = max(0, new_x)
+    inter_y1 = max(0, new_y)
+    inter_x2 = min(w, new_x + bw)
+    inter_y2 = min(h, new_y + bh)
+
+    inter_w = inter_x2 - inter_x1
+    inter_h = inter_y2 - inter_y1
+
+    if inter_w > 1 and inter_h > 1:
+        new_boxes.append([inter_x1, inter_y1, inter_w, inter_h])
+        new_areas.append(inter_w * inter_h)
+
+    target["bbox"] = new_boxes
+    target["area"] = new_areas
+
+    return img, target
+
+
+class RandomCrop:
+    def __init__(self, p=0.5, scale=0.6):
         self.p = p
+        self.scale = scale
 
     def __call__(self, img, target):
-        if random.random() < self.p:
-            region = self.get_params(target)
-            return crop(img, target, region)
+        if random.random() < self.p and len(target['bbox']) > 0:
+            region = self.get_params(target, img)
+            img, target = crop(img, target, region)
+            return img, target
         return img, target
 
-    @staticmethod
-    def get_params(target):
-        target = target.copy()
-        boxes = target['boxes']
-        cases = list(range(len(boxes)))
-        idx = random.sample(cases, 1)[0] # xyxy
-        box = boxes[idx].clone()
-        box[2:] -= box[:2] # top-left-height-width
-        # box[2:] *= 1.2 
-        box = box[[1, 0, 3, 2]]
-        return box.tolist()
+    def get_params(self, target, img):
+        """Choose a random object and make a crop region around it."""
+        w, h = img.size
+        x, y, bw, bh = target["bbox"]
 
+        crop_w = min(w, bw * self.scale)
+        crop_h = min(h, bh * self.scale)
+
+        i = max(0, int(y + bh / 2 - crop_h / 2))
+        j = max(0, int(x + bw / 2 - crop_w / 2))
+
+        if i + crop_h > h:
+            i = h - crop_h
+        if j + crop_w > w:
+            j = w - crop_w
+
+        return [int(i), int(j), int(crop_h), int(crop_w)]
 
 class RandomHorizontalFlip(object):
     def __init__(self, p=0.5):
@@ -441,7 +481,6 @@ class ColorJitter(object):
                     hue = self.hue
                     hue_factor = torch.tensor(1.0).uniform_(hue[0], hue[1]).item()
                     img = F.adjust_hue(img, hue_factor)
-
         return img, target
     
 class Rotate(object):

@@ -5,7 +5,6 @@ from pathlib import Path
 from omegaconf import OmegaConf
 from collections import Counter
 
-
 import time
 import atexit
 import random
@@ -156,7 +155,6 @@ class Trainer(object):
         # Load datasets
         dataset_train = self.build_dataloader('dataset_train')
         dataset_val = self.build_dataloader('dataset_val')
-
         self.dataloader_train = dist_utils.warp_loader(dataset_train, self.cfg.dataset_train.shuffle)
         self.dataloader_val = dist_utils.warp_loader(dataset_val, self.cfg.dataset_val.shuffle)
 

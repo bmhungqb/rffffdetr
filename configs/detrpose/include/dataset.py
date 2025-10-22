@@ -7,7 +7,11 @@ from src.data.dataloader import (
 from src.data.coco_eval import CocoEvaluator
 from src.data.container import Compose
 import src.data.transforms as T
-
+from albumentations import (
+    Compose, RandomCrop, ColorJitter, Resize,
+    HorizontalFlip, ShiftScaleRotate, Normalize
+)
+from albumentations.pytorch import ToTensorV2
 from .detrpose_hgnetv2 import eval_spatial_size
 
 from omegaconf import OmegaConf
@@ -20,26 +24,19 @@ __all__ = ["dataset_train", "dataset_val", "dataset_test", "evaluator"]
 
 dataset_train = L(DataLoader)(
 	dataset=L(CocoDetection)(
-		img_folder="./data/train",
-		ann_file="./data/annotations/train.json",
-		transforms=L(Compose)(
-			policy={
-				'name': 'stop_epoch',
-				'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
-				'epoch': [5, 29, 48]
-				},
-			mosaic_prob=0.5,
-			transforms1=L(T.Mosaic)(output_size=320, probability=1.0),
-			transforms2=L(T.RandomZoomOut)(p=0.5),
-      transforms3=L(T.RandomCrop)(p=0.5), # add random crop
-			# transforms3=L(T.RandomHorizontalFlip)(),
-			transforms4=L(T.ColorJitter)(),
-			transforms5=L(T.RandomResize)(sizes=scales, max_size=max_size), 
-			transforms6=L(T.ToTensor)(),
-			transforms7=L(T.Normalize)(mean=[0, 0, 0], std=[1, 1, 1]),
-      transforms8=L(T.Rotate)(degrees=45, p=0.5) # add rotate
-			),
-
+		img_folder="data/train",
+		ann_file="data/annotations/train.json",
+    transforms=Compose([
+        # RandomCrop(height=640, width=640, p=0.5),
+        HorizontalFlip(p=0.5),
+        ShiftScaleRotate(shift_limit=0.05, scale_limit=0.2, rotate_limit=30, p=0.5),
+        ColorJitter(p=0.5),
+        Resize(height=scales[0][0], width=scales[0][0]),
+        Normalize(mean=[0, 0, 0], std=[1, 1, 1]),
+        ToTensorV2(),
+    ],
+      keypoint_params=dict(format='xy', remove_invisible=False),
+      bbox_params=dict(format='coco', label_fields=['category_ids'])  # Add bbox support
 		),
 	total_batch_size=16,
 	collate_fn=L(BatchImageCollateFunction)(
@@ -52,16 +49,16 @@ dataset_train = L(DataLoader)(
 	drop_last=True,
 	pin_memory=True
 	)
-
+  )
 dataset_val = L(DataLoader)(
 	dataset=L(CocoDetection)(
-		img_folder="./data/val",
-		ann_file="./data/annotations/val.json",
-		transforms=L(Compose)(
-			transforms1=L(T.RandomResize)(sizes=[eval_spatial_size], max_size=max_size), 
-			transforms2=L(T.ToTensor)(),
-			transforms3=L(T.Normalize)(mean=[0, 0, 0], std=[1, 1, 1])
-			),
+		img_folder="data/val",
+		ann_file="data/annotations/val.json",
+		transforms=Compose([
+      Resize(height=eval_spatial_size[0], width=eval_spatial_size[1]),
+      Normalize(mean=[0, 0, 0], std=[1, 1, 1]),
+      ToTensorV2()
+    ])
 		),
 	total_batch_size=32,
 	collate_fn=L(BatchImageCollateFunction)(
@@ -75,12 +72,12 @@ dataset_val = L(DataLoader)(
 
 dataset_test = L(DataLoader)(
 	dataset=L(CocoDetection)(
-		img_folder="./data/val",
-		ann_file="./data/annotations/val.json",
-		transforms=L(Compose)(
-			transforms1=L(T.RandomResize)(sizes=[eval_spatial_size], max_size=max_size), 
-			transforms2=L(T.ToTensor)(),
-			transforms3=L(T.Normalize)(mean=[0, 0, 0], std=[1, 1, 1])
+		img_folder="data/val",
+		ann_file="data/annotations/val.json",
+		transforms=Compose(
+        Resize(height=eval_spatial_size[0], width=eval_spatial_size[1]),
+        Normalize(mean=[0, 0, 0], std=[1, 1, 1]),
+        ToTensorV2()
 			),
 		),
 	total_batch_size=32,
@@ -94,8 +91,7 @@ dataset_test = L(DataLoader)(
 	)
 
 evaluator = L(CocoEvaluator)(
-	ann_file="./data/annotations/val.json",
+	ann_file="data/annotations/val.json",
 	iou_types=['keypoints'],
 	useCats=True
 	)
-

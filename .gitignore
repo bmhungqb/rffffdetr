@@ -8,3 +8,5 @@ trt_engines/
 clean_pth_files.py
 **/__pycache__/**
 examples/output/
+data
+debug_transforms

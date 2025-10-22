@@ -25,7 +25,7 @@ Annotations must follow the COCO format:
     {
         "<other_info>": ...,
         "keypoints": [x1, y1, v1, x2, y2, v2, ..., x17, y17, v17],
-        "num_keypoints": 15,  // Count of visible keypoints (v > 0)
+        "num_keypoints": 10,  // Count of visible keypoints (v > 0)
         "bbox": [x, y, width, height]
     }
 ]
@@ -36,14 +36,18 @@ Annotations must follow the COCO format:
 
 2. Update num_body_points at `configs/detrpose/include/detrpose_hgnetv2.py`
 
-3. Setup environment
+3. Config transforms
++ Config transform policy at `configs\detrpose\detrpose_hgnetv2_{size}.py`
++ Config transform at `configs/detrpose/include/dataset.py`
+
+4. Setup environment
     ```bash
     conda create -n detrpose python=3.11.9
     conda activate detrpose
     pip install -r requirements.txt
     ```
 
-4. Train model
+5. Train model
     ```bash
     export model=l
     CUDA_VISIBLE_DEVICES=0 train.py --config_file configs/detrpose/detrpose_hgnetv2_${model}.py --device cuda --amp --pretrain dfine_${model}_obj365 
