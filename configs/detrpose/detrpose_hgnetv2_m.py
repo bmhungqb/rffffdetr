@@ -45,10 +45,10 @@ model.encoder.in_channels = [384, 768, 1536]
 model.encoder.depth_mult = 0.67
 model.transformer.num_decoder_layers = 4
 
-dataset_train.dataset.transforms.policy = {
-    'name': 'stop_epoch',
-    'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
-    'epoch': [5, 35, 60] # 60 / 2 + 5 = 35
-    }
-dataset_train.collate_fn.base_size_repeat = 6
-dataset_train.collate_fn.stop_epoch = 60
+# dataset_train.dataset.transforms.policy = {
+#     'name': 'stop_epoch',
+#     'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
+#     'epoch': [5, 35, 60] # 60 / 2 + 5 = 35
+#     }
+# dataset_train.collate_fn.base_size_repeat = 6
+# dataset_train.collate_fn.stop_epoch = 60

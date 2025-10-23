@@ -21,26 +21,25 @@ __all__ = ['build']
 class CocoDetection(torch.utils.data.Dataset):
     def __init__(self, img_folder, ann_file, transforms, return_masks=False):
         super(CocoDetection, self).__init__()
-        self._transforms = transforms
-        self.prepare = ConvertCocoPolysToMask(return_masks)
-        
         self.img_folder = Path(img_folder)
         self.coco = COCO(ann_file)
+        self.prepare = ConvertCocoPolysToMask(return_masks)
+        self._transforms = transforms
+        
         imgIds = sorted(self.coco.getImgIds())
+        self.all_imgIds = []
         
         if "train" in ann_file:
-            self.all_imgIds = []
             for image_id in imgIds:
-                if self.coco.getAnnIds(imgIds=image_id) == []:
-                    continue
                 ann_ids = self.coco.getAnnIds(imgIds=image_id)
+                if not ann_ids:
+                    continue
                 target = self.coco.loadAnns(ann_ids)
                 num_keypoints = [obj["num_keypoints"] for obj in target]
                 if sum(num_keypoints) == 0:
                     continue
                 self.all_imgIds.append(image_id)
         else:
-            self.all_imgIds = []
             for image_id in imgIds:
                 self.all_imgIds.append(image_id)
 
@@ -66,9 +65,51 @@ class CocoDetection(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         img, target = self.load_item(idx)
+
         if self._transforms is not None:
-            img, target = self._transforms(img, target, self)
+            img_np = np.array(img)
+
+            # --- prepare keypoints ---
+            keypoints = np.array(target.get("keypoints", []), dtype=np.float32)
+
+            # Handle nested shape like (1, 13, 3)
+            if keypoints.ndim == 3 and keypoints.shape[0] == 1:
+                keypoints = keypoints[0]
+
+            vis = None
+            if keypoints.size > 0:
+                if keypoints.shape[1] == 3:
+                    vis = keypoints[:, 2].copy()
+                    keypoints = keypoints[:, :2]
+                elif keypoints.shape[1] != 2:
+                    raise ValueError(f"Unexpected keypoint shape: {keypoints.shape}")
+
+            target["keypoints"] = keypoints.tolist()
+
+            # --- convert labels to list ---
+            labels = target.get("labels", [])
+            if isinstance(labels, torch.Tensor):
+                labels = labels.cpu().numpy().tolist()
+
+            # --- apply Albumentations transforms ---
+            transformed = self._transforms(
+                image=img_np,
+                bboxes=target.get("boxes", []),
+                keypoints=target.get("keypoints", []),
+                labels=labels,
+            )
+            img = transformed["image"]
+            target["boxes"] = transformed["bboxes"]
+            target["keypoints"] = transformed["keypoints"]
+            target["labels"] = torch.as_tensor(transformed["labels"], dtype=torch.int64)
+
+            # --- restore visibility if existed ---
+            if vis is not None and len(target["keypoints"]) == len(vis):
+                restored = np.hstack([np.array(target["keypoints"]), vis[:, None]])
+                target["keypoints"] = restored.tolist()
+
         return img, target
+
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):
@@ -99,47 +140,69 @@ class ConvertCocoPolysToMask(object):
         if len(img_array.shape) == 2:
             img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
             image = Image.fromarray(img_array)
-        # FIX: get num_keyspoints
-        num_keypoints = len(target["categories"]["keypoints"]) if "categories" in target and "keypoints" in target["categories"] else max(len(obj["keypoints"]) for obj in target["annotations"]) // 3
+        
         image_id = target["image_id"]
         image_id = torch.tensor([image_id])
+        # filter anno
         anno = target["annotations"]
         anno = [obj for obj in anno if 'iscrowd' not in obj or obj['iscrowd'] == 0]
         anno = [obj for obj in anno if obj['num_keypoints'] != 0]
+        # FIX: get num_keyspoints
+        num_keypoints = len(target["categories"]["keypoints"]) if "categories" in target and "keypoints" in target["categories"] else max(len(obj["keypoints"]) for obj in target["annotations"]) // 3
         keypoints = [obj["keypoints"] for obj in anno]
         boxes = [obj["bbox"] for obj in anno]
-        keypoints = torch.as_tensor(keypoints, dtype=torch.float32).reshape(-1, num_keypoints, 3)
-        # guard against no boxes via resizing
-        boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
-        boxes[:, 2:] += boxes[:, :2]
-        boxes[:, 0::2].clamp_(min=0, max=w)
-        boxes[:, 1::2].clamp_(min=0, max=h)
-        classes = [obj["category_id"] for obj in anno]
-        classes = torch.tensor(classes, dtype=torch.int64)
+        # Handle empty annotations
+        if len(anno) == 0:
+            empty_target = {
+                "boxes": torch.zeros((0, 4), dtype=torch.float32),
+                "labels": torch.zeros((0,), dtype=torch.int64),
+                "keypoints": torch.zeros((0, 0, 3), dtype=torch.float32),
+                "image_id": image_id,
+                "area": torch.zeros((0,), dtype=torch.float32),
+                "iscrowd": torch.zeros((0,), dtype=torch.int64),
+                "orig_size": torch.as_tensor([int(w), int(h)]),
+                "size": torch.as_tensor([int(h), int(w)]),
+            }
+            if self.return_masks:
+                empty_target["masks"] = torch.zeros((0, h, w), dtype=torch.uint8)
+            return image, empty_target
+        
+        # === Extract fields ===
+        num_keypoints = len(anno[0]["keypoints"]) // 3
+        boxes = torch.as_tensor([obj["bbox"] for obj in anno], dtype=torch.float32).reshape(-1, 4)
+        boxes[:, 2:] += boxes[:, :2]  # xywh -> xyxy
+        boxes[:, 0::2].clamp_(min=0, max=w - 1)
+        boxes[:, 1::2].clamp_(min=0, max=h - 1)
+
+        classes = torch.as_tensor([obj["category_id"] for obj in anno], dtype=torch.int64)
+        keypoints = torch.as_tensor([obj["keypoints"] for obj in anno], dtype=torch.float32).reshape(-1, num_keypoints, 3)
+
         if self.return_masks:
             segmentations = [obj["segmentation"] for obj in anno]
             masks = convert_coco_poly_to_mask(segmentations, h, w)
+        else:
+            masks = None
+
+        # === Filter invalid boxes ===
         keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
-        boxes = boxes[keep]
-        classes = classes[keep]
-        keypoints = keypoints[keep]
-        if self.return_masks:
+        boxes, classes, keypoints = boxes[keep], classes[keep], keypoints[keep]
+        if masks is not None:
             masks = masks[keep]
-        target = {}
-        target["boxes"] = boxes
-        target["labels"] = classes
-        if self.return_masks:
+
+        # === Prepare final target ===
+        target = {
+            "boxes": boxes,
+            "labels": classes,
+            "keypoints": keypoints,
+            "image_id": image_id,
+            "area": torch.as_tensor([obj["area"] for obj in anno], dtype=torch.float32)[keep],
+            "iscrowd": torch.as_tensor([obj.get("iscrowd", 0) for obj in anno], dtype=torch.int64)[keep],
+            "orig_size": torch.as_tensor([int(w), int(h)]),
+            "size": torch.as_tensor([int(h), int(w)]),
+        }
+        if masks is not None:
             target["masks"] = masks
-        target["image_id"] = image_id
-        if keypoints is not None:
-            target["keypoints"] = keypoints
-        # for conversion to coco api
-        area = torch.tensor([obj["area"] for obj in anno])
-        iscrowd = torch.tensor([obj["iscrowd"] if "iscrowd" in obj else 0 for obj in anno])
-        target["area"] = area[keep]
-        target["iscrowd"] = iscrowd[keep]
-        target["orig_size"] = torch.as_tensor([int(w), int(h)])
-        target["size"] = torch.as_tensor([int(h), int(w)])
+
         return image, target
 
 

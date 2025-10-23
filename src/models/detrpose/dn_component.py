@@ -93,7 +93,7 @@ def prepare_for_cdn(dn_args, training, num_queries, num_classes, num_keypoints, 
         # keypoint noise
         boxes = torch.cat([t['boxes'] for t in targets])
         xy = (boxes[:, :2] + boxes[:, 2:]) / 2.
-        keypoints = torch.cat([t['keypoints'] for t in targets])
+        keypoints = torch.cat([t['keypoints'].reshape(1, -1) for t in targets])
         if 'area' in targets[0]:
             areas = torch.cat([t['area'] for t in targets])
         else:
