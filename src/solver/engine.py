@@ -36,8 +36,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     
     for i, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         samples = samples.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
+        targets = [
+            {
+                k: torch.as_tensor(v, device=device) if not torch.is_tensor(v) else v.to(device)
+                for k, v in t.items()
+            }
+            for t in targets
+        ]
         global_step = epoch * len(data_loader) + i
 
         for j in range(args.grad_accum_steps):

@@ -65,24 +65,51 @@ class CocoDetection(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         img, target = self.load_item(idx)
+
         if self._transforms is not None:
             img_np = np.array(img)
 
+            # --- prepare keypoints ---
+            keypoints = np.array(target.get("keypoints", []), dtype=np.float32)
+
+            # Handle nested shape like (1, 13, 3)
+            if keypoints.ndim == 3 and keypoints.shape[0] == 1:
+                keypoints = keypoints[0]
+
+            vis = None
+            if keypoints.size > 0:
+                if keypoints.shape[1] == 3:
+                    vis = keypoints[:, 2].copy()
+                    keypoints = keypoints[:, :2]
+                elif keypoints.shape[1] != 2:
+                    raise ValueError(f"Unexpected keypoint shape: {keypoints.shape}")
+
+            target["keypoints"] = keypoints.tolist()
+
+            # --- convert labels to list ---
+            labels = target.get("labels", [])
+            if isinstance(labels, torch.Tensor):
+                labels = labels.cpu().numpy().tolist()
+
+            # --- apply Albumentations transforms ---
             transformed = self._transforms(
                 image=img_np,
                 bboxes=target.get("boxes", []),
-                labels=target.get("labels", []),
                 keypoints=target.get("keypoints", []),
+                labels=labels,
             )
-
-            # extract transformed
             img = transformed["image"]
-            target["boxes"] = torch.as_tensor(transformed["bboxes"], dtype=torch.float32)
+            target["boxes"] = transformed["bboxes"]
+            target["keypoints"] = transformed["keypoints"]
             target["labels"] = torch.as_tensor(transformed["labels"], dtype=torch.int64)
-            if "keypoints" in transformed:
-                target["keypoints"] = torch.as_tensor(transformed["keypoints"], dtype=torch.float32)
-        
+
+            # --- restore visibility if existed ---
+            if vis is not None and len(target["keypoints"]) == len(vis):
+                restored = np.hstack([np.array(target["keypoints"]), vis[:, None]])
+                target["keypoints"] = restored.tolist()
+
         return img, target
+
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):
