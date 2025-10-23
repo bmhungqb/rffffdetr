@@ -1,0 +1,80 @@
+{
+  "info": {
+    "description": "Short Sleeve Top Keypoint Dataset",
+    "version": "1.0",
+    "year": 2025,
+    "contributor": "hungbm",
+    "date_created": "2025-10-20"
+  },
+  "licenses": [
+    {
+      "id": 1,
+      "name": "Unknown",
+      "url": "N/A"
+    }
+  ],
+  "images": [
+    {"id": 1, "file_name": "000005.jpg", "width": 468, "height": 624},
+    {"id": 2, "file_name": "000010.jpg", "width": 468, "height": 624},
+    {"id": 3, "file_name": "000022.jpg", "width": 468, "height": 624},
+    {"id": 4, "file_name": "000023.jpg", "width": 468, "height": 831}
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "short sleeve top",
+      "supercategory": "none",
+      "keypoints": [
+        "kp1", "kp2", "kp3", "kp4", "kp5", "kp6",
+        "kp7", "kp8", "kp9", "kp10", "kp11", "kp12", "kp13"
+      ],
+      "skeleton": [
+        [1, 2], [2, 3], [3, 4], [4, 5],
+        [5, 6], [6, 7], [7, 8], [8, 9],
+        [9, 10], [10, 11], [11, 12], [12, 13]
+      ]
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [48, 0, 419, 623],
+      "area": 261037,
+      "iscrowd": 0,
+      "keypoints": [380,70,2, 0,0,0, 0,0,0, 215,11,2, 90,236,2, 157,282,2, 194,138,2, 57,539,2, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0],
+      "num_keypoints": 6
+    },
+    {
+      "id": 2,
+      "image_id": 2,
+      "category_id": 1,
+      "bbox": [125, 66, 342, 557],
+      "area": 190494,
+      "iscrowd": 0,
+      "keypoints": [417,139,2, 344,116,2, 0,0,0, 269,72,2, 133,148,2, 160,237,2, 207,236,2, 178,607,2, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0],
+      "num_keypoints": 7
+    },
+    {
+      "id": 3,
+      "image_id": 3,
+      "category_id": 1,
+      "bbox": [0, 79, 466, 544],
+      "area": 253504,
+      "iscrowd": 0,
+      "keypoints": [233,188,2, 131,86,2, 348,87,2, 28,160,2, 0,0,0, 0,0,0, 36,274,2, 0,0,0, 0,0,0, 420,282,2, 0,0,0, 452,296,2, 389,153,2],
+      "num_keypoints": 8
+    },
+    {
+      "id": 4,
+      "image_id": 4,
+      "category_id": 1,
+      "bbox": [0, 137, 465, 573],
+      "area": 266445,
+      "iscrowd": 0,
+      "keypoints": [230,232,2, 139,156,2, 332,142,2, 84,194,2, 0,0,0, 32,360,2, 85,332,2, 39,695,2, 442,682,2, 408,312,2, 0,0,0, 0,0,0, 384,178,2],
+      "num_keypoints": 10
+    }
+  ]
+}
