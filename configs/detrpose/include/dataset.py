@@ -28,16 +28,13 @@ dataset_train = L(DataLoader)(
 				'ops': ['Mosaic', 'RandomCrop', 'RandomZoomOut'],
 				'epoch': [5, 29, 48]
 				},
-			mosaic_prob=0.5,
-			transforms1=L(T.Mosaic)(output_size=320, probability=1.0),
-			transforms2=L(T.RandomZoomOut)(p=0.5),
-      transforms3=L(T.RandomCrop)(p=0.5), # add random crop
-			# transforms3=L(T.RandomHorizontalFlip)(),
-			transforms4=L(T.ColorJitter)(),
+			transforms1=L(T.RandomZoomOut)(p=0.5),
+      transforms2=L(T.RandomCrop)(p=0.5), # add random crop
+      transforms3=L(T.Rotate)(degrees=45, p=0.5), # add rotate
+			transforms4=L(T.ColorJitter)(p=0.5),
 			transforms5=L(T.RandomResize)(sizes=scales, max_size=max_size), 
 			transforms6=L(T.ToTensor)(),
 			transforms7=L(T.Normalize)(mean=[0, 0, 0], std=[1, 1, 1]),
-      transforms8=L(T.Rotate)(degrees=45, p=0.5) # add rotate
 			),
 
 		),
